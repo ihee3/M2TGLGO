@@ -35,8 +35,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("sh/scripts/MultiDimGCN/log/utils.log")
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
@@ -466,6 +465,15 @@ def check_image_feature(input_dir, dataset_key, dataset_labels, train_dataset_la
         logger.info(f"File {image_feature_path} found. Loading data...")
         with open(image_feature_path, 'rb') as f:
             img_features_per_dataset = pickle.load(f)
+
+        missing_labels = [label for label in dataset_labels if label not in img_features_per_dataset]
+        if missing_labels:
+            logger.info(f"Missing image features for: {missing_labels}. Generating...")
+            new_features = get_image_feature(input_dir, dataset_key, missing_labels, train_dataset_labels, spots_used_per_dataset, gene_type, mode, device)
+            img_features_per_dataset.update(new_features)
+            with open(image_feature_path, 'wb') as f:
+                pickle.dump(img_features_per_dataset, f)
+            logger.info("Missing image features generated and cache updated.")
 
         for dataset_label in img_features_per_dataset:
             img_features_per_dataset[dataset_label] = torch.tensor(img_features_per_dataset[dataset_label], dtype=torch.float32).to(device)

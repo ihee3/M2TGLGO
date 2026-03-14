@@ -48,7 +48,7 @@ def fetch_go_terms(ensembl_id):
                 elif isinstance(terms, list):
                     go_terms.extend(term['id'] for term in terms)
             
-        time.sleep(10) 
+        time.sleep(1)
         return ensembl_id, go_terms
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 429:
@@ -84,11 +84,17 @@ def get_ensembl_ids(genes, species):
 
 def prefetch_go_terms(ensembl_ids, num_workers=8):
     go_terms_mapping = {}
-    
-    with mp.Pool(num_workers) as pool:
-        for ensembl_id, go_terms in tqdm(pool.imap_unordered(fetch_go_terms, ensembl_ids), total=len(ensembl_ids), desc="Fetching GO terms"):
+
+    if num_workers <= 1:
+        # Sequential mode: avoids SSL issues in forked processes
+        for ensembl_id in tqdm(ensembl_ids, desc="Fetching GO terms"):
+            _, go_terms = fetch_go_terms(ensembl_id)
             go_terms_mapping[ensembl_id] = go_terms
-            
+    else:
+        with mp.Pool(num_workers) as pool:
+            for ensembl_id, go_terms in tqdm(pool.imap_unordered(fetch_go_terms, ensembl_ids), total=len(ensembl_ids), desc="Fetching GO terms"):
+                go_terms_mapping[ensembl_id] = go_terms
+
     return go_terms_mapping
 
 def calculate_gene_similarity(similarity_scores, go_terms1, go_terms2):

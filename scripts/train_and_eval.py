@@ -41,7 +41,7 @@ def train(input_dir, dataset_labels, features_and_adjacencies_per_dataset, img_f
 
     loss_save_path = f"{input_dir}/model_pth/loss"
     create_dir(loss_save_path)
-    for epoch in tqdm(range(2)):
+    for epoch in tqdm(range(100)):
         model_mgcn.train()
         total_loss = 0.0
         optimizer.zero_grad()
@@ -125,9 +125,9 @@ if __name__ == "__main__":
 
     dataset_key = "other"
     species = "human"
-    input_dir = r'sh/data/bc'
-    dataset_labels = ["A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "B5",  "B6"]
-    eval_label = "A1"
+    input_dir = '/data'
+    dataset_labels = ["NCBI643",  "NCBI682",  "NCBI684", "NCBI642",  "NCBI681"]
+    eval_label = "NCBI683"
     train_dataset_labels = list(set(dataset_labels)- set([eval_label]))
     marker_genes = ''
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
     gene_type = "highly_variable"
     n_top_genes = 3000
 
-    gene_embeddings_path = 'sh/scripts/MultiDimGCN/biological_database/gene2vec_dim_200_iter_9_w2v.txt'
+    gene_embeddings_path = '/workspace/M2TGLGO/biological_database/gene2vec_dim_200_iter_9_w2v.txt'
     gene_embeddings = load_gene_embeddings(gene_embeddings_path)
     gene_embeddings_keys = gene_embeddings.keys()
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     create_comp_data(input_dir, dataset_key, dataset_labels, spots_used_per_dataset, gene_type, analyzed_genes, mode, device,)
     img_features_per_dataset = check_image_feature(input_dir, dataset_key, dataset_labels, train_dataset_labels, spots_used_per_dataset, gene_type, mode, device)
 
-    GODag_path = "sh/scripts/MultiDimGCN/biological_database/go-basic.obo"
+    GODag_path = "/workspace/M2TGLGO/biological_database/go-basic.obo"
     gene_similarity_matrix = check_gene_similarity_matrix(input_dir, species, gene_type, analyzed_genes, GODag_path)
 
     train(train_folder, train_dataset_labels, features_and_adjacencies_per_dataset, img_features_per_dataset, raw_gene_expression_data, gene_embeddings, gene_similarity_matrix, mgcn_gnn_type, gene_gnn_type, mode, device)
@@ -189,3 +189,19 @@ if __name__ == "__main__":
     
         node_embeddings = model_mgcn(node_features_list, adj_matrix)
         predicted_expression = torch.matmul(node_embeddings, updated_gene_embeddings.T)
+
+        # MSE
+        mse = F.mse_loss(predicted_expression, gene_expression_data).item()
+
+        # PCC per gene, then average
+        pred_np = predicted_expression.cpu().numpy()
+        true_np = gene_expression_data.cpu().numpy()
+        pcc_list = []
+        for i in range(pred_np.shape[1]):
+            r, _ = pearsonr(pred_np[:, i], true_np[:, i])
+            pcc_list.append(r)
+        mean_pcc = np.mean(pcc_list)
+
+        print(f"[Eval] Dataset: {eval_label}")
+        print(f"[Eval] MSE : {mse:.6f}")
+        print(f"[Eval] Mean PCC : {mean_pcc:.6f}")
